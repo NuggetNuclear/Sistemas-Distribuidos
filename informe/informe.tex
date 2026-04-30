@@ -301,12 +301,71 @@ proviene del orden aleatorio de calentamiento, no de evicciones diferenciales.
 Esto confirma que en el régimen actual \emph{el tamaño no es el cuello de
 botella}.
 
-En producción, con un dataset completo de Open Buildings para Chile
-(decenas de GB, cientos de miles de zonas/claves únicas), la presión real
-emergería y las políticas se diferenciarían: LFU sería la elección óptima
-para patrones Zipf estables en el largo plazo; LRU sería preferible bajo
-localidad temporal; FIFO sólo cuando la simplicidad operacional importe
-más que el rendimiento.
+\subsubsection*{Corrida de saturación deliberada (LRU, 1.2\,MB, Uniforme, 60\,s)}
+
+Para evidenciar empíricamente el comportamiento de la caché bajo presión
+real de memoria se añadió una \emph{única corrida corta} configurada para
+forzar evicciones. La justificación de cada parámetro es la siguiente:
+
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{Tamaño $\mathbf{1.2}$\,MB.} Redis 7 reserva $\approx 950$\,KB
+  como \texttt{used\_memory\_overhead} (estructuras internas, slot tables,
+  conexiones), independientemente del número de keys. Cualquier
+  \texttt{maxmemory} por debajo de ese piso provoca que toda inserción
+  falle silenciosamente sin que el cliente lo perciba (verificado:
+  \texttt{maxmemory}\,=\,256\,KB produjo 0 keys residentes y 0 hits). Con
+  \texttt{maxmemory}\,=\,1.2\,MB el presupuesto efectivo para datos es
+  $\sim$250\,KB, suficiente para alojar entre 60 y 150 entradas a la vez,
+  pero \emph{insuficiente} para el keyspace alcanzable.
+\item \textbf{Distribución Uniforme.} Maximiza la diversidad de keys
+  consultadas (las cinco zonas, cinco tipos de consulta y 21 niveles de
+  \texttt{confidence\_min} aparecen con igual probabilidad), llevando al
+  sistema rápidamente a generar más keys distintas que las que caben en
+  caché.
+\item \textbf{Duración 60\,s a 60\,qps.} Produce $\sim$3\,600 invocaciones
+  al traffic generator; con la cota cuadrática del keyspace
+  ($5 \times 5 \times 21 = 525$ + pares Q4) y la latencia simulada que
+  satura el response generator, las consultas efectivamente cursadas
+  exceden largamente las 74 keys que el caché puede sostener
+  simultáneamente, garantizando rotación continua.
+\end{itemize}
+
+\begin{table}[h]
+\centering\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lr}
+\toprule
+\textbf{Métrica} & \textbf{Valor} \\
+\midrule
+Hit rate                        & 0.1903 \\
+Miss rate                       & 0.8097 \\
+Throughput (qps)                & 10.02 \\
+Latencia p50 hit / miss (ms)    & 0.28 / 1\,680 \\
+Latencia p95 hit / miss (ms)    & 0.49 / 2\,503 \\
+Cache efficiency (ms/consulta)  & 334.3 \\
+Keys residentes                 & 74 \\
+\texttt{used\_memory} / \texttt{maxmemory} & 1.16\,MB / 1.20\,MB (97\,\%) \\
+\textbf{Evicciones totales}     & \textbf{475} \\
+\textbf{Eviction rate (/min)}   & \textbf{408.4} \\
+\bottomrule
+\end{tabular}
+\caption{Resultados de la corrida de saturación deliberada
+(LRU, 1.2\,MB, Uniforme, 60\,s).}\label{tab:eviction}
+\end{table}
+
+\textbf{Lectura del Cuadro~\ref{tab:eviction}.} El caché se mantiene al
+97\,\% de \texttt{maxmemory} con 74 keys residentes, mientras LRU expulsa
+475 entradas durante la ventana (rate 408/min). El hit rate cae a 19\,\%,
+muy por debajo del 27\,\% Uniforme con 50\,MB, exactamente porque las
+keys recientemente insertadas son expulsadas antes de poder ser reutilizadas;
+es la \emph{firma operacional} de un caché bajo presión, no un defecto
+de la implementación. La caída del hit rate por consulta es proporcional al
+tamaño del keyspace de cada una: Q5 (sólo 9 valores de \texttt{bins} sobre
+5 zonas $=$ 45 keys) cae a 40\,\%; Q4 (cuadrático, $\geq 525$ keys) cae a
+8\,\%. Este experimento valida que la lógica de evicción funciona
+correctamente; en el régimen oficial (50/200/500\,MB con 319 mil
+edificaciones) el keyspace simplemente no alcanza a saturar el caché y por
+eso se observan cero evicciones.
 
 \subsection{Latencia hit vs.\ miss y cache efficiency}
 
@@ -462,14 +521,16 @@ FIFO Zipf    50\,MB     & 0.8052 & 38.01 & 0.29 / 904   & 0.56 / 3876  & 0 & 1\,
 LRU  Uniforme 50\,MB    & 0.2646 &  9.94 & 0.34 / 1683  & 1.11 / 3804  & 0 & \phantom{1\,}494.8 \\
 LFU  Uniforme 50\,MB    & 0.2694 &  9.97 & 0.31 / 1592  & 0.81 / 3878  & 0 & \phantom{1\,}493.6 \\
 FIFO Uniforme 50\,MB    & 0.2667 &  9.55 & 0.28 / 1709  & 0.65 / 3880  & 0 & \phantom{1\,}509.8 \\
-LRU  Zipf 50\,MB 180\,s & 0.9342 & 35.97 & 0.34 / 259   & 1.28 / 3633  & 0 & \phantom{1\,}648.4 \\
+LRU  Zipf 50\,MB 180\,s    & 0.9342 & 35.97 & 0.34 / 259   & 1.28 / 3633  &   0   & \phantom{1\,}648.4 \\
+LRU  Uniforme 1.2\,MB 60\,s & 0.1903 & 10.02 & 0.28 / 1\,680 & 0.49 / 2\,503 & 408.4 & \phantom{1\,}334.3 \\
 \bottomrule
 \end{tabular}
 \caption{Las cinco métricas del enunciado para cada configuración
 (\textit{Hit rate}, \textit{Throughput}, \textit{Latencia p50/p95},
-\textit{Eviction rate}, \textit{Cache efficiency}). La tasa de evicción es
-0/min en todos los experimentos por la razón estructural discutida en la
-Sec.~4.3.}\label{tab:metrics}
+\textit{Eviction rate}, \textit{Cache efficiency}). La última fila
+corresponde a la corrida de saturación deliberada (Cuadro~\ref{tab:eviction})
+y es la única que registra evicciones por la justificación discutida en
+la Sec.~4.3.}\label{tab:metrics}
 \end{table}
 
 %% ─────────────────────────────────────────────────────────────────
@@ -562,7 +623,10 @@ sobre Redis y se evaluaron empíricamente cuatro hipótesis:
 \item \textbf{Los tres tamaños de caché (50/200/500\,MB) son equivalentes}
   para este keyspace de $\sim$300\,KB observados; ningún experimento (ni
   siquiera el de 2\,MB) registró evicciones. La diferencia entre LRU/LFU/FIFO
-  es ruido estadístico (\textless 1\,pp).
+  es ruido estadístico (\textless 1\,pp). Una corrida adicional de
+  saturación deliberada (LRU 1.2\,MB Uniforme 60\,s) sí produjo
+  475 evicciones (rate 408/min) y un hit rate de 19\,\%, validando la
+  lógica de evicción del sistema (Cuadro~\ref{tab:eviction}).
 \item \textbf{La caché reduce la latencia 3--4 órdenes de magnitud}: p50
   hit $\sim$0.3\,ms vs.\ p50 miss $\sim$870\,ms; cache efficiency
   1\,008--1\,103\,ms/consulta en Zipf 25\,s.

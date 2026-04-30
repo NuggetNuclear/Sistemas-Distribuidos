@@ -1,0 +1,113 @@
+{
+  "label": "LRU_1_2mb_uniform_eviction",
+  "summary": {
+    "elapsed_sec": 69.78,
+    "totals": {
+      "hits": 133,
+      "misses": 566,
+      "errors": 0,
+      "total_requests": 699
+    },
+    "hit_rate": 0.1903,
+    "miss_rate": 0.8097,
+    "throughput_qps_total": 10.02,
+    "throughput_qps_recent_10s": 9.0,
+    "latency_ms_hit": {
+      "p50": 0.276,
+      "p95": 0.494,
+      "p99": 0.789
+    },
+    "latency_ms_miss": {
+      "p50": 1679.63,
+      "p95": 2502.811,
+      "p99": 4068.584
+    },
+    "latency_ms_all": {
+      "p50": 1615.429,
+      "p95": 2486.273,
+      "p99": 3674.934
+    },
+    "mean_t_cache_ms": 0.304,
+    "mean_t_db_ms": 1757.131,
+    "cache_efficiency": 334.275,
+    "eviction": {
+      "total_evicted": 475,
+      "rate_per_min": 408.44
+    },
+    "cache_redis_stats": {
+      "policy": "LRU",
+      "used_memory": 1221544,
+      "used_memory_human": "1.16M",
+      "maxmemory": 1258291,
+      "n_keys": 74,
+      "evicted_keys": 475,
+      "keyspace_hits": 19849,
+      "keyspace_misses": 7319
+    },
+    "by_query": {
+      "Q1": {
+        "hits": 14,
+        "misses": 118,
+        "total": 132,
+        "hit_rate": 0.1061,
+        "p50_ms": 1624.761,
+        "p95_ms": 2386.857,
+        "p99_ms": 3389.281
+      },
+      "Q2": {
+        "hits": 27,
+        "misses": 113,
+        "total": 140,
+        "hit_rate": 0.1929,
+        "p50_ms": 1536.097,
+        "p95_ms": 2462.448,
+        "p99_ms": 3479.718
+      },
+      "Q3": {
+        "hits": 25,
+        "misses": 119,
+        "total": 144,
+        "hit_rate": 0.1736,
+        "p50_ms": 1554.436,
+        "p95_ms": 2508.91,
+        "p99_ms": 6614.699
+      },
+      "Q4": {
+        "hits": 12,
+        "misses": 134,
+        "total": 146,
+        "hit_rate": 0.0822,
+        "p50_ms": 1734.857,
+        "p95_ms": 2493.744,
+        "p99_ms": 3438.6
+      },
+      "Q5": {
+        "hits": 55,
+        "misses": 82,
+        "total": 137,
+        "hit_rate": 0.4015,
+        "p50_ms": 1388.59,
+        "p95_ms": 2247.516,
+        "p99_ms": 3470.489
+      }
+    },
+    "label": "LRU_1_2mb_uniform_eviction",
+    "extra": {
+      "distribution": "uniform",
+      "rate_qps": 60.0,
+      "duration_sec": 60.0,
+      "concurrency": 16,
+      "seed": 42,
+      "label": "LRU_1_2mb_uniform_eviction"
+    },
+    "snapshot_ts": 1777520744.8671017
+  },
+  "extra": {
+    "distribution": "uniform",
+    "rate_qps": 60.0,
+    "duration_sec": 60.0,
+    "concurrency": 16,
+    "seed": 42,
+    "label": "LRU_1_2mb_uniform_eviction"
+  }
+}
