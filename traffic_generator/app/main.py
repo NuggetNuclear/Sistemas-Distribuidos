@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from .distributions import build_selector, PoissonInterArrival
 
+#  ============= configuracion global ============= #
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [traffic-gen] %(message)s")
 log = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ QUERY_TYPES = ["Q1", "Q2", "Q3", "Q4", "Q5"]
 CONF_LEVELS = [round(i * 0.05, 2) for i in range(0, 21)] 
 BIN_LEVELS = [3, 4, 5, 6, 8, 10, 12, 15, 20]
 
+
+#  ============= estado del experimento ============= #
 class ExperimentState:
     def __init__(self):
         self.running = False
@@ -46,6 +49,7 @@ class ExperimentState:
         self.last_results = []
 
 
+#  ============= inicializacion de estado global y cliente ============= #
 state = ExperimentState()
 http: httpx.AsyncClient | None = None
 
@@ -64,10 +68,11 @@ async def lifespan(app: FastAPI):
             pass
     await http.aclose()
 
-
+#  ============= aplicacion fastapi ============= #
 app = FastAPI(title="Traffic Generator", lifespan=lifespan)
 
 
+#  ============= configuracion del experimento ============= #
 class RunRequest(BaseModel):
 
     distribution: str = Field("zipf", pattern="^(zipf|uniform)$")
@@ -156,7 +161,7 @@ async def _worker(queue: asyncio.Queue):
                 state.last_results = state.last_results[-1000:]
         queue.task_done()
 
-
+#  ============= ejecucion principal del experimento ============= #
 async def _run_experiment(cfg: RunRequest):
 
     log.info(f"Iniciando experimento: {cfg.dict()}")
@@ -223,11 +228,12 @@ async def _run_experiment(cfg: RunRequest):
         state.running = False
 
 
+#  ============= endpoints de monitoreo del servicio ============= #
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
-
+#  ============= estado del experimento en ejecucion ============= #
 @app.get("/status")
 async def status():
     elapsed = time.time() - state.start_time if state.running else 0
@@ -248,6 +254,7 @@ async def status():
     }
 
 
+#  ============= endpoint para iniciar experimento ============= #
 @app.post("/run")
 async def run(req: RunRequest):
     if state.running:
