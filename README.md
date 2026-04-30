@@ -31,24 +31,19 @@ precargado en memoria.
 
 ```
 .
-├── data/
-│   ├── generate_synthetic_data.py        # Genera el dataset (parquet)
-│   └── santiago_buildings.parquet        # Subconjunto Open Buildings (≈ 8.5 MB)
+├── data/santiago_buildings.parquet       # Subconjunto Open Buildings (≈ 8.5 MB)
 ├── traffic_generator/                    # Servicio 1 — Generador de Tráfico
 ├── cache_service/                        # Servicio 2 — Caché (Redis)
 ├── response_generator/                   # Servicio 3 — Generador de Respuestas
 ├── metrics_service/                      # Servicio 4 — Almacenamiento de Métricas
 ├── experiments/
-│   ├── master_run.py                     # Batería completa (3 pol × 3 size × 2 dist)
-│   ├── run_experiments.py                # Runner de experimentos individuales
-│   ├── analyze_results.py                # Tabla y figuras simples
+│   ├── master_run.py                     # Batería completa (22 corridas)
 │   └── build_figures.py                  # 7 figuras del informe
 ├── informe/
 │   ├── informe.tex                       # Informe técnico
+│   ├── informe.pdf                       # PDF compilado
 │   └── figs/                             # Figuras generadas
 ├── results/                              # Snapshots JSON de cada experimento
-├── snapshots/                            # Snapshots emitidos por metrics_service
-├── scripts/run_all_experiments.sh        # Alternativa a master_run.py (reinicia stack por combo)
 ├── docker-compose.yml                    # Definición del stack
 ├── .env                                  # Configuración (política, tamaño, TTLs)
 └── Tarea_1_Sistemas_Distribuidos_2026_1.pdf
@@ -76,30 +71,15 @@ literalmente la Sección 4 y 5 del enunciado, con los mismos formatos de
 
 ## Despliegue paso a paso
 
-### 1) Generar el dataset
+### 1) Verificar el dataset
 
-El subconjunto Open Buildings (5 zonas, ≈ 141 000 edificaciones) se genera
-con el script provisto:
+El repositorio incluye el subconjunto Open Buildings para las cinco zonas
+en `data/santiago_buildings.parquet` (≈ 8.5 MB, 319 225 edificaciones).
+Confirma que el archivo está presente:
 
 ```bash
-pip install numpy pandas pyarrow
-python data/generate_synthetic_data.py
+ls -la data/santiago_buildings.parquet
 ```
-
-Salida esperada:
-
-```
-[gen] Z1 (Providencia): 22,000 buildings
-[gen] Z2 (Las Condes): 28,000 buildings
-[gen] Z3 (Maipu): 38,000 buildings
-[gen] Z4 (Santiago Centro): 32,000 buildings
-[gen] Z5 (Pudahuel): 21,000 buildings
-[gen] Total: 141,000 buildings, mem ~3.7 MB
-[gen] Wrote data/santiago_buildings.parquet
-```
-
-> El archivo `santiago_buildings.parquet` también puede venir incluido en el
-> repositorio. Si ya existe, este paso es opcional.
 
 ### 2) Levantar el stack
 
@@ -229,10 +209,8 @@ SIM_LATENCY_MAX_MS=120
 ```
 
 `experiments/master_run.py` reconfigura `maxmemory-policy` y `maxmemory` en
-runtime con `redis-cli CONFIG SET`, evitando reiniciar contenedores entre
-combinaciones. El script `scripts/run_all_experiments.sh` recrea el stack
-con `docker compose down -v && docker compose up -d --build` en cada combo
-(más lento pero independiente).
+runtime con `docker compose exec redis redis-cli CONFIG SET`, evitando
+reiniciar contenedores entre combinaciones.
 
 ---
 
@@ -295,8 +273,11 @@ Body de `/run`:
 
 **`docker compose up` falla con "dataset no encontrado"**
 
+Verifica que `data/santiago_buildings.parquet` existe en el repositorio
+(≈ 8.5 MB). Si fue eliminado por error, recupéralo desde Git:
+
 ```bash
-python data/generate_synthetic_data.py
+git checkout -- data/santiago_buildings.parquet
 ```
 
 **El cache service reporta `OOM` o falla al iniciar**

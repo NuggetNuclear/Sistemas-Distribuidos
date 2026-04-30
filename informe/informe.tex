@@ -225,11 +225,18 @@ tráfico sobre las $\sim$570 claves posibles: aún con todas en caché, en
 poco repetidas.
 
 El throughput sostenido también se diferencia: $\sim$38\,qps en Zipf vs.\
-$\sim$10\,qps en Uniforme (factor $\sim$4$\times$). La razón es estructural:
-con concurrencia 16 y latencia simulada 30--120\,ms, el Response Generator
-satura cuando la fracción de misses es alta. En Uniforme, $\sim$73\,\% de
-las consultas son misses, lo que excede la capacidad efectiva del backend y
-acumula cola.
+$\sim$10\,qps en Uniforme (factor $\sim$4$\times$, ver
+Figura~\ref{fig:thr}). La razón es estructural: con concurrencia 16 y
+latencia simulada 30--120\,ms, el Response Generator satura cuando la
+fracción de misses es alta. En Uniforme, $\sim$73\,\% de las consultas son
+misses, lo que excede la capacidad efectiva del backend y acumula cola.
+
+\begin{figure}[h]
+\centering\includegraphics[width=0.85\textwidth]{figs/fig4_throughput.pdf}
+\caption{Throughput sostenido por política y distribución (caché 50\,MB,
+objetivo 60\,qps).}
+\label{fig:thr}
+\end{figure}
 
 \begin{figure}[h]
 \centering\includegraphics[width=0.88\textwidth]{figs/fig2_zipf_vs_uniform.pdf}
