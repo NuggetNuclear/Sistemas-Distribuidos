@@ -1,0 +1,97 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: tarea1_redis
+    # Variables tomadas de .env (ver README para defaults).
+    # maxmemory en bytes, maxmemory-policy es la política.
+    # Para FIFO usamos 'noeviction' y manejamos eviction en el cliente.
+    command: >
+      redis-server
+      --maxmemory ${REDIS_MAXMEMORY:-200mb}
+      --maxmemory-policy ${REDIS_POLICY_NATIVE:-allkeys-lru}
+      --maxmemory-samples 10
+      --save ""
+      --appendonly no
+    ports:
+      - "${REDIS_PORT_HOST:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  response_generator:
+    build: ./response_generator
+    container_name: tarea1_response_gen
+    environment:
+      DATA_PATH: /data/santiago_buildings.parquet
+      SIM_LATENCY_MIN_MS: ${SIM_LATENCY_MIN_MS:-30}
+      SIM_LATENCY_MAX_MS: ${SIM_LATENCY_MAX_MS:-120}
+    volumes:
+      - ./data:/data:ro
+    ports:
+      - "8002:8002"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cache_service:
+    build: ./cache_service
+    container_name: tarea1_cache_svc
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RESPONSE_GEN_URL: http://response_generator:8002
+      METRICS_URL: http://metrics:8003
+      CACHE_POLICY: ${CACHE_POLICY:-LRU}
+      CACHE_TTL_SEC: ${CACHE_TTL_SEC:-300}
+      TTL_Q1: ${TTL_Q1:-300}
+      TTL_Q2: ${TTL_Q2:-300}
+      TTL_Q3: ${TTL_Q3:-180}
+      TTL_Q4: ${TTL_Q4:-120}
+      TTL_Q5: ${TTL_Q5:-600}
+    ports:
+      - "8001:8001"
+    depends_on:
+      redis:
+        condition: service_healthy
+      response_generator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  metrics:
+    build: ./metrics_service
+    container_name: tarea1_metrics
+    environment:
+      LATENCY_WINDOW: 5000
+      SNAPSHOT_DIR: /snapshots
+      CACHE_STATS_URL: http://cache_service:8001/stats
+    volumes:
+      - ./snapshots:/snapshots
+    ports:
+      - "8003:8003"
+    depends_on:
+      cache_service:
+        condition: service_healthy
+
+  traffic_generator:
+    build: ./traffic_generator
+    container_name: tarea1_traffic_gen
+    environment:
+      CACHE_URL: http://cache_service:8001
+    ports:
+      - "8000:8000"
+    depends_on:
+      cache_service:
+        condition: service_healthy
+      metrics:
+        condition: service_started

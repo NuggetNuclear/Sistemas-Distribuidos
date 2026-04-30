@@ -1,0 +1,108 @@
+{
+  "path": "/snapshots/1777517441_LFU_500mb_uniform.json",
+  "summary": {
+    "elapsed_sec": 36.29,
+    "totals": {
+      "hits": 96,
+      "misses": 263,
+      "errors": 0,
+      "total_requests": 359
+    },
+    "hit_rate": 0.2674,
+    "miss_rate": 0.7326,
+    "throughput_qps_total": 9.89,
+    "throughput_qps_recent_10s": 6.1,
+    "latency_ms_hit": {
+      "p50": 0.236,
+      "p95": 0.472,
+      "p99": 0.668
+    },
+    "latency_ms_miss": {
+      "p50": 1735.591,
+      "p95": 3381.646,
+      "p99": 6001.504
+    },
+    "latency_ms_all": {
+      "p50": 1547.608,
+      "p95": 2859.046,
+      "p99": 5390.194
+    },
+    "mean_t_cache_ms": 0.267,
+    "mean_t_db_ms": 1838.278,
+    "cache_efficiency": 491.502,
+    "eviction": {
+      "total_evicted": 0,
+      "rate_per_min": 0.0
+    },
+    "cache_redis_stats": {
+      "policy": "LRU",
+      "used_memory": 1251296,
+      "used_memory_human": "1.19M",
+      "maxmemory": 524288000,
+      "n_keys": 254,
+      "evicted_keys": 0,
+      "keyspace_hits": 6239,
+      "keyspace_misses": 3073
+    },
+    "by_query": {
+      "Q1": {
+        "hits": 14,
+        "misses": 50,
+        "total": 64,
+        "hit_rate": 0.2188,
+        "p50_ms": 1475.538,
+        "p95_ms": 2452.202,
+        "p99_ms": 3978.816
+      },
+      "Q2": {
+        "hits": 19,
+        "misses": 53,
+        "total": 72,
+        "hit_rate": 0.2639,
+        "p50_ms": 1164.674,
+        "p95_ms": 2350.078,
+        "p99_ms": 2922.435
+      },
+      "Q3": {
+        "hits": 22,
+        "misses": 48,
+        "total": 70,
+        "hit_rate": 0.3143,
+        "p50_ms": 1414.881,
+        "p95_ms": 4488.56,
+        "p99_ms": 6646.759
+      },
+      "Q4": {
+        "hits": 9,
+        "misses": 74,
+        "total": 83,
+        "hit_rate": 0.1084,
+        "p50_ms": 1781.755,
+        "p95_ms": 3069.518,
+        "p99_ms": 3688.652
+      },
+      "Q5": {
+        "hits": 32,
+        "misses": 38,
+        "total": 70,
+        "hit_rate": 0.4571,
+        "p50_ms": 1007.542,
+        "p95_ms": 2800.354,
+        "p99_ms": 5068.51
+      }
+    },
+    "label": "LFU_500mb_uniform",
+    "extra": {
+      "distribution": "uniform",
+      "rate_qps": 60.0,
+      "duration_sec": 25.0,
+      "zipf_s": 1.5,
+      "concurrency": 16,
+      "seed": 42,
+      "label": "LFU_500mb_uniform",
+      "policy": "LFU",
+      "size": "500mb"
+    },
+    "snapshot_ts": 1777517441.0179553
+  }
+}

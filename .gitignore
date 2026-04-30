@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Local env overrides
+.env.local
+
+# OS / IDE / harness
+.DS_Store
+.idea/
+.vscode/
+.claude/
+
+# LaTeX build artifacts (PDF se mantiene versionado)
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+informe/build/
+
+# Snapshots emitidos en runtime por metrics_service (results/ es la fuente
+# canónica de resultados versionados).
+snapshots/*.json
