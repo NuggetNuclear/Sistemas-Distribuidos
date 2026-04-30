@@ -1,37 +1,31 @@
-"""
-Cache Service — intercepta consultas, sirve hits desde Redis, delega misses
-al Response Generator. Reporta cada evento al Metrics Service.
-
-Endpoints:
-    POST /query   — punto de entrada principal del pipeline
-    GET  /stats   — stats agregados del cache
-    POST /flush   — limpia el cache (útil para experimentos)
-    GET  /health  — healthcheck
-"""
+# ======================= dependencias del proyecto ======================= #
 import os
 import time
 import logging
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
-
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from .cache import CacheClient
 
+
+# =========================== configuracion del logging =========================== #
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [cache-svc] %(message)s")
 log = logging.getLogger(__name__)
 
+
+# ======================= variables de entorno ======================= #
 REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 RESPONSE_GEN_URL = os.getenv("RESPONSE_GEN_URL", "http://response_generator:8002")
 METRICS_URL = os.getenv("METRICS_URL", "http://metrics:8003")
+
+
+# ======================= configuracion TTL ======================= #
 TTL_BY_QUERY = {
-    # TTLs específicos por tipo de consulta (segundos).
-    # Q4 (compare) y Q3 (density) se beneficia de TTL más corto porque dependen de Q1.
-    # Q5 (distribución) es más estable, TTL largo.
     "Q1": int(os.getenv("TTL_Q1", "300")),
     "Q2": int(os.getenv("TTL_Q2", "300")),
     "Q3": int(os.getenv("TTL_Q3", "180")),
@@ -39,12 +33,14 @@ TTL_BY_QUERY = {
     "Q5": int(os.getenv("TTL_Q5", "600")),
 }
 
+
+# ======================= clientes globales ======================= #
 cache: CacheClient | None = None
 http: httpx.AsyncClient | None = None
 
 
+# ======================== generacion claves de cache ===================== #
 def _build_cache_key(query_type: str, params: dict[str, Any]) -> str:
-    """Cache keys según el formato exacto del enunciado (Sección 5)."""
     qt = query_type.upper()
     if qt == "Q1":
         return f"count:{params['zone_id']}:conf={params.get('confidence_min', 0.0):.2f}"
@@ -62,6 +58,7 @@ def _build_cache_key(query_type: str, params: dict[str, Any]) -> str:
     raise ValueError(f"Query type desconocido: {query_type}")
 
 
+# ====================== inicializacion del servicio ====================== #
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cache, http
@@ -71,22 +68,22 @@ async def lifespan(app: FastAPI):
     yield
     await http.aclose()
 
-
+# =============== creacion aplicacion API ============ #
 app = FastAPI(title="Cache Service", lifespan=lifespan)
 
 
+# ================== modelo de request ============== #
 class QueryRequest(BaseModel):
     query_type: str
     params: dict[str, Any] = Field(default_factory=dict)
-    client_id: str | None = None  # útil para trackear orígenes
+    client_id: str | None = None
 
 
+# ==================== envio de metricas y endpoints ================ #
 async def _send_metric(event: dict):
-    """Envía evento al servicio de métricas. Fire-and-forget."""
     try:
         await http.post(f"{METRICS_URL}/event", json=event, timeout=2.0)
     except Exception as e:
-        # No bloqueamos el flujo principal por errores de métricas
         log.debug(f"Metrics post failed: {e}")
 
 
@@ -112,13 +109,6 @@ async def flush():
 
 @app.post("/query")
 async def query(req: QueryRequest):
-    """
-    Flujo principal:
-      1. Construye cache key
-      2. Lookup en cache
-      3a. Hit → devuelve, registra hit
-      3b. Miss → llama a response_generator, almacena, registra miss
-    """
     if cache is None or http is None:
         raise HTTPException(503, "Servicio no inicializado")
 
@@ -129,15 +119,16 @@ async def query(req: QueryRequest):
     except (KeyError, ValueError) as e:
         raise HTTPException(400, f"Parámetros inválidos: {e}")
 
-    # 1. Lookup
+    # ================== busqueda en cache ============== #
     t_lookup_start = time.perf_counter()
     cached = cache.get(key)
     t_lookup_ms = (time.perf_counter() - t_lookup_start) * 1000
 
+
+# ================== hiteo de cache ============== #
     if cached is not None:
-        # CACHE HIT
         latency_ms = (time.perf_counter() - t_total_start) * 1000
-        # Métricas async sin bloquear
+
         asyncio.create_task(_send_metric({
             "event": "hit",
             "query_type": req.query_type.upper(),
@@ -152,8 +143,7 @@ async def query(req: QueryRequest):
             "latency_ms": latency_ms,
             "key": key,
         }
-
-    # CACHE MISS — delegar al response generator
+# ================== cache miss ============== #
     try:
         resp = await http.post(
             f"{RESPONSE_GEN_URL}/query",
@@ -163,7 +153,7 @@ async def query(req: QueryRequest):
         resp.raise_for_status()
         data = resp.json()
     except httpx.HTTPError as e:
-        # Registrar el error como evento (útil para Entrega 2 con fallback)
+
         asyncio.create_task(_send_metric({
             "event": "error",
             "query_type": req.query_type.upper(),
@@ -173,14 +163,18 @@ async def query(req: QueryRequest):
         }))
         raise HTTPException(502, f"Response generator falló: {e}")
 
+
+# ================== guardar en cache ============== #
     result = data["result"]
     compute_ms = data["compute_time_ms"]
 
-    # Almacenar en cache con TTL específico por tipo de consulta
     ttl = TTL_BY_QUERY.get(req.query_type.upper(), 300)
     cache.set(key, result, ttl=ttl)
 
+
+# ================== metricas del miss ============== #
     latency_ms = (time.perf_counter() - t_total_start) * 1000
+    
     asyncio.create_task(_send_metric({
         "event": "miss",
         "query_type": req.query_type.upper(),
