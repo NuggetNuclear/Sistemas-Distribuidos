@@ -1,32 +1,24 @@
-"""
-Implementación de las consultas Q1-Q5 sobre datos en memoria.
-
-Todas las consultas operan sobre arrays numpy/pandas para vectorización.
-Se inyecta una latencia simulada (sleep aleatorio) para representar el
-costo real de un cómputo geoespacial sobre datos no-cacheados; este es
-el punto donde una caché aporta valor.
-"""
+#  ============= dependencias del proyecto ============= #
 import time
 import random
 import numpy as np
 from typing import Any
 
 from .data_loader import DataStore
-
-# Latencia simulada de cómputo (en segundos). Configurable vía env vars.
 import os
+
+#  ============= latencia simulada ============= #
 SIM_LATENCY_MIN = float(os.getenv("SIM_LATENCY_MIN_MS", "30")) / 1000
 SIM_LATENCY_MAX = float(os.getenv("SIM_LATENCY_MAX_MS", "120")) / 1000
 
 
+#  ============= simulacion de tiempo de computo ============= #
 def _simulate_compute_latency():
-    """Inyecta latencia para simular procesamiento geoespacial pesado."""
     if SIM_LATENCY_MAX > 0:
         time.sleep(random.uniform(SIM_LATENCY_MIN, SIM_LATENCY_MAX))
 
 
 def q1_count(store: DataStore, zone_id: str, confidence_min: float = 0.0) -> dict[str, Any]:
-    """Q1: Conteo de edificios en una zona con filtro de confianza."""
     _simulate_compute_latency()
     df = store.get_zone(zone_id)
     if confidence_min <= 0:
@@ -37,7 +29,6 @@ def q1_count(store: DataStore, zone_id: str, confidence_min: float = 0.0) -> dic
 
 
 def q2_area(store: DataStore, zone_id: str, confidence_min: float = 0.0) -> dict[str, Any]:
-    """Q2: Área promedio y total."""
     _simulate_compute_latency()
     df = store.get_zone(zone_id)
     if confidence_min > 0:
@@ -58,7 +49,6 @@ def q2_area(store: DataStore, zone_id: str, confidence_min: float = 0.0) -> dict
 
 
 def q3_density(store: DataStore, zone_id: str, confidence_min: float = 0.0) -> dict[str, Any]:
-    """Q3: Densidad de edificios por km²."""
     _simulate_compute_latency()
     df = store.get_zone(zone_id)
     if confidence_min > 0:
@@ -75,8 +65,6 @@ def q3_density(store: DataStore, zone_id: str, confidence_min: float = 0.0) -> d
 
 def q4_compare(store: DataStore, zone_a: str, zone_b: str,
                confidence_min: float = 0.0) -> dict[str, Any]:
-    """Q4: Compara densidad entre dos zonas."""
-    # Una sola latencia simulada — son dos sub-cálculos pero se reportan juntos.
     _simulate_compute_latency()
     da_full = q3_density(store, zone_a, confidence_min)
     db_full = q3_density(store, zone_b, confidence_min)
@@ -91,7 +79,6 @@ def q4_compare(store: DataStore, zone_a: str, zone_b: str,
 
 
 def q5_confidence_dist(store: DataStore, zone_id: str, bins: int = 5) -> dict[str, Any]:
-    """Q5: Distribución de score de confianza en intervalos."""
     _simulate_compute_latency()
     df = store.get_zone(zone_id)
     scores = df["confidence"].values
@@ -104,11 +91,10 @@ def q5_confidence_dist(store: DataStore, zone_id: str, bins: int = 5) -> dict[st
     return {"query": "Q5", "zone_id": zone_id, "bins": int(bins), "buckets": buckets}
 
 
-# --- Routing por tipo de consulta ---
 
+#  ============= routing segun tipo de consulta ============= #
 def execute_query(store: DataStore, query_type: str,
                   params: dict[str, Any]) -> dict[str, Any]:
-    """Ejecuta la consulta correspondiente. Lanza ValueError si tipo desconocido."""
     qt = query_type.upper()
     if qt == "Q1":
         return q1_count(store, params["zone_id"], params.get("confidence_min", 0.0))
@@ -124,11 +110,9 @@ def execute_query(store: DataStore, query_type: str,
     raise ValueError(f"Query type desconocido: {query_type}")
 
 
+#  ============= generacion de claves para cache ============= #
 def build_cache_key(query_type: str, params: dict[str, Any]) -> str:
-    """
-    Construye la cache key según el formato exacto del enunciado (Sección 5).
-    Provista para consistencia; el cache_service usa su propia implementación.
-    """
+
     qt = query_type.upper()
     if qt == "Q1":
         return f"count:{params['zone_id']}:conf={params.get('confidence_min', 0.0):.2f}"
