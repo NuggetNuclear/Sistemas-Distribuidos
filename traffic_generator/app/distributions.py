@@ -1,28 +1,10 @@
-"""
-Distribuciones para el Generador de Tráfico.
-
-Dos ejes ortogonales:
-  1. Tasa de arribo (inter-arrival time): exponencial pura (Poisson) con
-     rate λ. Esto modela cuándo llegan las consultas.
-  2. Selección del item consultado: Zipf (sesgada → favorece hits) o
-     Uniforme (sin sesgo → estresa al cache).
-
-El enunciado pide explícitamente comparar Zipf vs. Uniforme como
-"distribuciones de tasa de arribo", pero conceptualmente Zipf no aplica
-a tiempos sino a frecuencia de selección. Implementamos ambas
-interpretaciones: la tasa siempre es Poisson, lo que cambia es CÓMO se
-elige qué consultar.
-"""
+#  ============= dependencias del proyecto ============= #
 import numpy as np
 from typing import Sequence
 
 
+#  ============= selector de consultas con distribucion zipf ============= #
 class ZipfSelector:
-    """
-    Selecciona items con frecuencia P(i) ∝ 1 / i^s.
-    Genera ranking realista de "zonas hot" (centros urbanos consultados
-    muchas veces) vs. "zonas cold".
-    """
 
     def __init__(self, items: Sequence, s: float = 1.2, seed: int = 0):
         self.items = list(items)
@@ -38,12 +20,11 @@ class ZipfSelector:
         return self.items[idx]
 
     def describe(self) -> dict:
-        return {"distribution": "zipf", "s": self.s,
-                "probs": [round(float(p), 4) for p in self.probs]}
+        return {"distribution": "zipf", "s": self.s, "probs": [round(float(p), 4) for p in self.probs]}
 
 
+#  ============= selector de consultas con distribucion uniforme ============= #
 class UniformSelector:
-    """Selección uniforme — todos los items con igual probabilidad."""
 
     def __init__(self, items: Sequence, seed: int = 0):
         self.items = list(items)
@@ -57,8 +38,8 @@ class UniformSelector:
         return {"distribution": "uniform", "n": len(self.items)}
 
 
+#  ============= modelo de llegadas poisson ============= #
 class PoissonInterArrival:
-    """Tiempos entre arribos exponenciales con tasa λ (consultas/segundo)."""
 
     def __init__(self, rate_qps: float, seed: int = 0):
         self.rate = rate_qps
@@ -68,6 +49,7 @@ class PoissonInterArrival:
         return float(self.rng.exponential(1.0 / self.rate))
 
 
+#  ============= selectores de distribucion ============= #
 def build_selector(kind: str, items: Sequence, **kwargs):
     kind = kind.lower()
     if kind == "zipf":
