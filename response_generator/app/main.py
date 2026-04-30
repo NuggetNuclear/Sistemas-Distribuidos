@@ -1,11 +1,4 @@
-"""
-Response Generator — servicio HTTP que ejecuta Q1-Q5 sobre datos en memoria.
-
-Endpoints:
-    POST /query   — ejecuta una consulta
-    GET  /health  — healthcheck
-    GET  /stats   — info del dataset cargado
-"""
+#  ============= dependencias del proyecto ============= #
 import os
 import time
 import logging
@@ -17,11 +10,14 @@ from typing import Any
 from .data_loader import DataStore, ZONES
 from .queries import execute_query
 
+#  ============= configuracion de logging ============= #
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [resp-gen] %(message)s")
 log = logging.getLogger(__name__)
 
+#  ============= configuracion de dataset ============= #
 DATA_PATH = os.getenv("DATA_PATH", "/data/santiago_buildings.parquet")
 store: DataStore | None = None
+
 
 
 @asynccontextmanager
@@ -33,20 +29,23 @@ async def lifespan(app: FastAPI):
     yield
     log.info("Shutting down")
 
-
+#  ============= inicializacion de la api ============= #
 app = FastAPI(title="Response Generator", lifespan=lifespan)
 
 
+#  ============= modelos de request y response ============= #
 class QueryRequest(BaseModel):
     query_type: str = Field(..., description="Q1|Q2|Q3|Q4|Q5")
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+#  ============= respuesta de consulta ============= #
 class QueryResponse(BaseModel):
     result: dict[str, Any]
     compute_time_ms: float
 
 
+#  ============= endpoints ============= #
 @app.get("/health")
 async def health():
     return {"status": "ok", "dataset_loaded": store is not None}
