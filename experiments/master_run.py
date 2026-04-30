@@ -144,7 +144,6 @@ def run_exp(label, distribution, duration=DURATION, rate=RATE,
 
 # ================== suites ===================== #
 def suite_demo():
-    """1 experimento rápido para verificar que todo funciona."""
     print("\n=== DEMO (1 experimento) ===", flush=True)
     wait_for_services()
     reconfigure_cache("LRU", SIZE_MAP["50mb"])
@@ -153,7 +152,6 @@ def suite_demo():
 
 
 def suite_official():
-    """18 experimentos oficiales: 3 pol × 3 sizes × 2 dist."""
     print("\n=== SUITE OFICIAL (18 experimentos) ===", flush=True)
     wait_for_services()
     t0 = time.time()
@@ -169,7 +167,6 @@ def suite_official():
 
 
 def suite_small_cache():
-    """3 experimentos con caché de 2MB para forzar evicciones."""
     print("\n=== SUITE CACHÉ PEQUEÑO (3 experimentos, 2MB) ===", flush=True)
     wait_for_services()
     SMALL = 2 * 1024 * 1024
@@ -182,7 +179,6 @@ def suite_small_cache():
 
 
 def suite_long():
-    """1 experimento de 180s para observar efecto TTL."""
     print("\n=== SUITE LARGA (180s, TTL test) ===", flush=True)
     wait_for_services()
     reconfigure_cache("LRU", SIZE_MAP["50mb"])
@@ -192,9 +188,8 @@ def suite_long():
 
 
 def suite_all():
-    """Todas las suites: official + small + long = 22 experimentos."""
     print("\n" + "="*65)
-    print("BATERÍA COMPLETA: 22 experimentos (~20 min)")
+    print("BATERÍA COMPLETA: 22 experimentos")
     print("="*65, flush=True)
     t0 = time.time()
     suite_official()
