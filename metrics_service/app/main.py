@@ -1,17 +1,4 @@
-"""
-Metrics Service — recibe eventos de hit/miss/error y los agrega.
-
-Mantiene contadores in-memory + ventana rodante para percentiles de
-latencia. Persiste snapshots a disco para análisis posterior.
-
-Endpoints:
-    POST /event       — recibir un evento del cache_service
-    GET  /summary     — resumen agregado (hit rate, throughput, p50/p95...)
-    GET  /summary/by_query — desglose por tipo de consulta (Q1...Q5)
-    POST /reset       — reinicia métricas (entre experimentos)
-    POST /snapshot    — guarda un snapshot a disco
-    GET  /health
-"""
+#  ============= dependenciasd del proyecto ============= #
 import os
 import time
 import json
@@ -27,18 +14,21 @@ import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
+
+#  ============= configuracion global ============= #
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [metrics] %(message)s")
 log = logging.getLogger(__name__)
 
-# Tamaño de ventana para percentiles (eventos)
+
 LATENCY_WINDOW = int(os.getenv("LATENCY_WINDOW", "5000"))
 SNAPSHOT_DIR = Path(os.getenv("SNAPSHOT_DIR", "/snapshots"))
 CACHE_STATS_URL = os.getenv("CACHE_STATS_URL", "http://cache_service:8001/stats")
 
 
+#  ============= clase principal de recoleccion de metricas ============= #
 class Metrics:
-    """Aggregator thread-safe (con un lock simple)."""
 
+#  ============= inicializacion y reseteo de contadores ============= #
     def __init__(self):
         self.lock = threading.Lock()
         self.start_time = time.time()
@@ -48,18 +38,20 @@ class Metrics:
         self.hits_total = 0
         self.misses_total = 0
         self.errors_total = 0
-        # Por tipo de consulta
+        
+        # por tipo de consulta
         self.hits_by_q: dict[str, int] = defaultdict(int)
         self.misses_by_q: dict[str, int] = defaultdict(int)
-        # Latencias por evento (rolling window)
+        
+        # latencias por evento
         self.latencies_hit: deque[float] = deque(maxlen=LATENCY_WINDOW)
         self.latencies_miss: deque[float] = deque(maxlen=LATENCY_WINDOW)
-        self.latencies_by_q: dict[str, deque] = defaultdict(
-            lambda: deque(maxlen=LATENCY_WINDOW)
-        )
-        # Para throughput sliding-window (timestamps de cada evento exitoso)
+        self.latencies_by_q: dict[str, deque] = defaultdict(lambda: deque(maxlen=LATENCY_WINDOW))
+        
+        # throughputs
         self.event_times: deque[float] = deque(maxlen=20000)
-        # Para eviction rate: snapshots cada vez que pidamos resumen
+        
+        # eviction rate
         self.last_eviction_snapshot: int = 0
         self.last_eviction_time: float = self.start_time
 
@@ -68,6 +60,8 @@ class Metrics:
             self.start_time = time.time()
             self._reset_counters()
 
+    
+#  ============= registro de eventos de cache ============= #
     def record(self, event: dict):
         ev = event.get("event")
         qt = event.get("query_type", "UNK").upper()
@@ -90,6 +84,8 @@ class Metrics:
             elif ev == "error":
                 self.errors_total += 1
 
+    
+#  ============= calculo de resumen global de metricas ============= #
     def summary(self, cache_stats: dict | None = None) -> dict:
         with self.lock:
             total = self.hits_total + self.misses_total
@@ -98,15 +94,15 @@ class Metrics:
             hit_rate = (self.hits_total / total) if total > 0 else None
             miss_rate = (1 - hit_rate) if hit_rate is not None else None
 
-            # Throughput: queries exitosas por segundo (toda la ventana)
+            # throughput de queries exitosas por segundo
             throughput = total / elapsed if elapsed > 0 else 0
 
-            # Throughput "instantáneo": últimos 10 segundos
+            # throughput ultimos 10 seg
             now = time.time()
             recent = [t for t in self.event_times if t >= now - 10]
             throughput_recent = len(recent) / 10.0 if recent else 0
 
-            # Latencias
+            # latencias
             def percentiles(arr: deque, ps=(50, 95, 99)):
                 if not arr:
                     return {f"p{p}": None for p in ps}
@@ -119,19 +115,16 @@ class Metrics:
                 deque(list(self.latencies_hit) + list(self.latencies_miss))
             )
 
-            # Cache efficiency (según definición del enunciado):
-            # (hits·t_cache − misses·t_db) / total
-            # Aproximamos t_cache ~ promedio de latencias hit, t_db ~ promedio
-            # de latencias miss (negativo porque miss "cuesta")
             mean_t_cache = float(np.mean(self.latencies_hit)) if self.latencies_hit else 0
             mean_t_db = float(np.mean(self.latencies_miss)) if self.latencies_miss else 0
+            
             efficiency = None
             if total > 0 and mean_t_db > 0:
-                # Interpretación: tiempo ahorrado vs. ejecutar todo en miss
+                
                 saved = self.hits_total * (mean_t_db - mean_t_cache)
                 efficiency = round(saved / total, 3)
 
-            # Eviction rate (de Redis)
+            # eviction rate
             eviction_rate_per_min = None
             current_evicted = None
             if cache_stats:
@@ -166,11 +159,15 @@ class Metrics:
                 "cache_redis_stats": cache_stats,
             }
 
+
+    #  ============= clculo de evicciones ============= #
     def update_eviction_marker(self, current_evicted: int):
         with self.lock:
             self.last_eviction_snapshot = current_evicted
             self.last_eviction_time = time.time()
 
+
+#  ============= resumen de metricas por tipo de query ============= #
     def by_query_summary(self) -> dict:
         with self.lock:
             out = {}
@@ -210,6 +207,7 @@ async def lifespan(app: FastAPI):
     await http.aclose()
 
 
+#  ============= inicializacion de la api ============= #
 app = FastAPI(title="Metrics Service", lifespan=lifespan)
 
 
@@ -225,6 +223,7 @@ class Event(BaseModel):
     ts: float | None = None
 
 
+#  ============= endpoints ============= #
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -235,7 +234,7 @@ async def event(ev: Event):
     metrics.record(ev.dict())
     return {"ok": True}
 
-
+#  ============= estadisticas del servicio de cache ============= #
 async def _fetch_cache_stats() -> dict | None:
     if http is None:
         return None
