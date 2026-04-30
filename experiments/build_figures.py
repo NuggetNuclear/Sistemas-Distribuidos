@@ -81,12 +81,7 @@ def fig1():
     bars = ax.bar(pretty, hrs, color=colors, width=0.55, zorder=2)
     
     for b,h in zip(bars,hrs):
-        ax.text(
-            b.get_x()+b.get_width()/2,
-            h+0.008, f"{h:.3f}",
-            ha="center",
-            fontsize=10,
-            fontweight="bold")
+        ax.text(b.get_x()+b.get_width()/2, h+0.008, f"{h:.3f}", ha="center", fontsize=10, fontweight="bold")
         
     ax.set_ylabel("Hit rate");
     ax.set_ylim(0,1)
@@ -110,22 +105,10 @@ def fig2():
     for i, dist in enumerate(DISTS):
         hrs = [v(snap(f"{pol}_50mb_{dist}"),"hit_rate") for pol in POLICIES]
         
-        bars = ax.bar(
-            x+(i-0.5)*w,
-            hrs,
-            w,
-            label=dist.capitalize(),
-            color=C[dist],
-            alpha=0.9,
-            zorder=2
-        )
+        bars = ax.bar(x+(i-0.5)*w, hrs, w, label=dist.capitalize(), color=C[dist], alpha=0.9, zorder=2)
         
         for b,h in zip(bars,hrs):
-            ax.text(
-                b.get_x()+b.get_width()/2,
-                h+0.01, f"{h:.3f}",
-                ha="center",
-                fontsize=9)
+            ax.text(b.get_x()+b.get_width()/2, h+0.01, f"{h:.3f}", ha="center", fontsize=9)
             
     ax.set_xticks(x);
     ax.set_xticklabels(POLICIES)
@@ -151,26 +134,10 @@ def fig3():
     for i, pol in enumerate(POLICIES):
         
         hrs = [v(snap(f"{pol}_{sz}_zipf"),"hit_rate") for sz in SIZES]
-        
-        bars = ax.bar(
-            x+(i-1)*w,
-            hrs,
-            w,
-            label=pol,
-            color=C[pol],
-            alpha=0.9,
-            zorder=2
-        )
+        bars = ax.bar(x+(i-1)*w, hrs, w, label=pol, color=C[pol], alpha=0.9, zorder=2)
         
         for b,h in zip(bars,hrs):
-            
-            ax.text(
-                b.get_x()+b.get_width()/2,
-                h+0.008,
-                f"{h:.3f}",
-                ha="center",
-                fontsize=8
-            )
+            ax.text(b.get_x()+b.get_width()/2, h+0.008, f"{h:.3f}", ha="center", fontsize=8)
 
     
     ax.set_xticks(x);
@@ -184,16 +151,7 @@ def fig3():
     ax.set_title("Hit rate vs. tamaño de caché (Zipf s=1.5)",pad=10)
     ax.legend(title="Política"); ax.grid(axis="y",alpha=0.3,zorder=0)
     
-    ax.text(
-        0.5,
-        0.04,
-        "Sin evicciones en ningún tamaño — el keyspace cabe en 50 MB",
-        ha="center", va="bottom",
-        transform=ax.transAxes,
-        fontsize=9,
-        color="grey",
-        style="italic"
-    )
+    ax.text(0.5, 0.04, "Sin evicciones en ningún tamaño — el keyspace cabe en 50 MB", ha="center", va="bottom", transform=ax.transAxes, fontsize=9, color="grey", style="italic")
     
     fig.tight_layout();
     
@@ -211,24 +169,10 @@ def fig4():
         
         thrs = [v(snap(f"{pol}_50mb_{dist}"),"throughput_qps_total") for pol in POLICIES]
         
-        bars = ax.bar(
-            x+(i-0.5)*w,
-            thrs,
-            w,
-            label=dist.capitalize(),
-            color=C[dist],
-            alpha=0.9,
-            zorder=2
-        )
+        bars = ax.bar(x+(i-0.5)*w, thrs, w, label=dist.capitalize(), color=C[dist], alpha=0.9, zorder=2)
         
         for b,t in zip(bars,thrs):
-            ax.text(
-                b.get_x()+b.get_width()/2,
-                t+0.4,
-                f"{t:.1f}",
-                ha="center",
-                fontsize=9
-            )
+            ax.text(b.get_x()+b.get_width()/2, t+0.4, f"{t:.1f}", ha="center", fontsize=9)
             
     ax.axhline(60, ls="--", color="red", alpha=0.4, label="Objetivo 60 qps")
     
@@ -304,24 +248,10 @@ def fig6():
             
         ys = [(bq.get(f"Q{j+1}") or {}).get("hit_rate") or 0 for j in range(5)]
         
-        bars = ax.bar(
-            x+(i-0.5)*w,
-            ys,
-            w,
-            label=name,
-            color=color,
-            alpha=0.9,
-            zorder=2
-        )
+        bars = ax.bar(x+(i-0.5)*w, ys, w, label=name, color=color, alpha=0.9, zorder=2)
         
         for b,y in zip(bars,ys):
-            ax.text(
-                b.get_x()+b.get_width()/2,
-                y+0.01,
-                f"{y:.2f}",
-                ha="center",
-                fontsize=9
-            )
+            ax.text(b.get_x()+b.get_width()/2, y+0.01, f"{y:.2f}", ha="center", fontsize=9)
             
     ax.set_xticks(x);
     ax.set_xticklabels(queries)
@@ -354,12 +284,11 @@ def fig7():
               "LRU\n(180 s)"
              ]
     
-    colors = [
-        C["LRU"],
-        C["LFU"],
-        C["FIFO"],
-        "#8B4513"
-    ]
+    colors = [C["LRU"], 
+              C["LFU"],
+              C["FIFO"],
+              "#8B4513"
+             ]
     
     effs   = [v(snap(l),"cache_efficiency") for l in labels]
     
@@ -368,14 +297,7 @@ def fig7():
     bars = ax.bar(pretty, effs, color=colors, width=0.5, zorder=2)
     
     for b,e in zip(bars,effs):
-        ax.text(
-            b.get_x()+b.get_width()/2,
-            e+3,
-            f"{e:.0f}",
-            ha="center",
-            fontsize=10,
-            fontweight="bold"
-        )
+        ax.text(b.get_x()+b.get_width()/2, e+3, f"{e:.0f}", ha="center", fontsize=10, fontweight="bold")
         
     ax.set_ylabel("Cache efficiency\n(ms/consulta ahorrado)")
     
