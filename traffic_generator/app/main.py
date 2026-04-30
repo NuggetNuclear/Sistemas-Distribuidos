@@ -1,19 +1,4 @@
-"""
-Generador de Tráfico — emite consultas Q1-Q5 al Cache Service.
-
-Comportamiento:
-  - Selecciona zona, tipo de consulta y parámetros usando las distribuciones
-    configuradas (Zipf o Uniforme).
-  - Inter-arrival time exponencial (tasa Poisson configurable).
-  - Emite consultas en paralelo con un pool de workers asíncronos.
-  - Expone una API HTTP para iniciar/detener experimentos y reportar progreso.
-
-Endpoints:
-    POST /run     — inicia un experimento con configuración dada
-    GET  /status  — estado actual
-    POST /stop    — detiene experimento en curso
-    GET  /health
-"""
+#  ============= dependencias del proyecto ============= #
 import os
 import asyncio
 import time
@@ -34,17 +19,12 @@ log = logging.getLogger(__name__)
 
 CACHE_URL = os.getenv("CACHE_URL", "http://cache_service:8001")
 
-# Las 5 zonas
+# 5 zonas
 ZONE_IDS = ["Z1", "Z2", "Z3", "Z4", "Z5"]
 QUERY_TYPES = ["Q1", "Q2", "Q3", "Q4", "Q5"]
-# Discretizamos confidence_min con suficiente granularidad para que cache
-# size sea relevante. 21 niveles en [0, 1] con paso 0.05.
-# Keyspace teórico: 5 zonas * 5 queries * 21 niveles ~ 525 + pairs Q4 + bins Q5
-# = ~600+ keys distintas, suficiente para que 50MB << 500MB sea distinguible.
-CONF_LEVELS = [round(i * 0.05, 2) for i in range(0, 21)]  # 0.0, 0.05, ..., 1.0
+CONF_LEVELS = [round(i * 0.05, 2) for i in range(0, 21)] 
 BIN_LEVELS = [3, 4, 5, 6, 8, 10, 12, 15, 20]
 
-# Estado del experimento (singleton; un experimento a la vez)
 class ExperimentState:
     def __init__(self):
         self.running = False
@@ -54,7 +34,7 @@ class ExperimentState:
         self.errors: int = 0
         self.task: Optional[asyncio.Task] = None
         self.stop_flag = asyncio.Event()
-        self.last_results: list[dict] = []  # rolling window
+        self.last_results: list[dict] = [] 
 
     def reset(self):
         self.running = False
@@ -89,16 +69,7 @@ app = FastAPI(title="Traffic Generator", lifespan=lifespan)
 
 
 class RunRequest(BaseModel):
-    """Configuración del experimento.
 
-    distribution: 'zipf' o 'uniform' (selección de zona/consulta)
-    rate_qps: tasa de arribo (Poisson, consultas por segundo)
-    duration_sec: duración total del experimento
-    n_queries: alternativa a duration; cantidad fija de consultas
-    zipf_s: parámetro s de Zipf (default 1.2)
-    concurrency: workers paralelos enviando requests
-    seed: semilla para reproducibilidad
-    """
     distribution: str = Field("zipf", pattern="^(zipf|uniform)$")
     rate_qps: float = Field(50.0, gt=0)
     duration_sec: float | None = None
@@ -106,15 +77,15 @@ class RunRequest(BaseModel):
     zipf_s: float = 1.2
     concurrency: int = 16
     seed: int = 42
-    label: str = "exp"  # etiqueta legible para el experimento
+    label: str = "exp" 
 
 
 def _build_query(zone_selector, query_selector, conf_selector, bin_selector,
                  rng: random.Random) -> dict:
-    """Construye un payload de consulta sintética."""
+
     qt = query_selector.sample()
     if qt == "Q4":
-        # Q4 necesita dos zonas distintas
+
         za = zone_selector.sample()
         zb = zone_selector.sample()
         attempts = 0
@@ -122,7 +93,7 @@ def _build_query(zone_selector, query_selector, conf_selector, bin_selector,
             zb = zone_selector.sample()
             attempts += 1
         if zb == za:
-            # fallback determinístico
+
             others = [z for z in ZONE_IDS if z != za]
             zb = rng.choice(others)
         return {
@@ -141,7 +112,7 @@ def _build_query(zone_selector, query_selector, conf_selector, bin_selector,
                 "bins": bin_selector.sample(),
             },
         }
-    # Q1, Q2, Q3
+
     return {
         "query_type": qt,
         "params": {
@@ -152,7 +123,7 @@ def _build_query(zone_selector, query_selector, conf_selector, bin_selector,
 
 
 async def _send_one(query: dict) -> dict:
-    """Envía una consulta al cache y retorna el resultado."""
+
     try:
         resp = await http.post(f"{CACHE_URL}/query", json=query, timeout=15.0)
         resp.raise_for_status()
@@ -162,7 +133,7 @@ async def _send_one(query: dict) -> dict:
 
 
 async def _worker(queue: asyncio.Queue):
-    """Worker que consume queries de la cola y las dispara."""
+
     while True:
         try:
             q = await queue.get()
@@ -176,7 +147,6 @@ async def _worker(queue: asyncio.Queue):
             state.errors += 1
         else:
             state.sent += 1
-            # Mantener una ventana de últimos resultados (max 1000)
             state.last_results.append({
                 "query_type": q["query_type"],
                 "cache": result.get("cache"),
@@ -188,10 +158,7 @@ async def _worker(queue: asyncio.Queue):
 
 
 async def _run_experiment(cfg: RunRequest):
-    """
-    Bucle principal: programa consultas según inter-arrival exponencial
-    y las pone en una cola consumida por workers concurrentes.
-    """
+
     log.info(f"Iniciando experimento: {cfg.dict()}")
     state.running = True
     state.start_time = time.time()
@@ -202,11 +169,9 @@ async def _run_experiment(cfg: RunRequest):
 
     rng = random.Random(cfg.seed)
 
-    # Selectores
-    # Zonas tienen orden de "popularidad" predefinido para Zipf:
-    # los centros urbanos van primero (Providencia, Santiago Centro, Las Condes)
+
     zone_order = ["Z1", "Z4", "Z2", "Z3", "Z5"]
-    query_order = ["Q1", "Q3", "Q2", "Q5", "Q4"]  # Q1 más común, Q4 menos
+    query_order = ["Q1", "Q3", "Q2", "Q5", "Q4"]
 
     zone_sel = build_selector(cfg.distribution, zone_order, s=cfg.zipf_s, seed=cfg.seed)
     query_sel = build_selector(cfg.distribution, query_order, s=cfg.zipf_s, seed=cfg.seed + 1)
@@ -237,15 +202,15 @@ async def _run_experiment(cfg: RunRequest):
             wait = arrival.next_wait()
             try:
                 await asyncio.wait_for(state.stop_flag.wait(), timeout=wait)
-                break  # stop solicitado
+                break  
             except asyncio.TimeoutError:
-                pass  # esperó normalmente
+                pass 
 
         log.info(f"Producción terminada. Esperando {queue.qsize()} en cola...")
-        # Drenar cola
+        
         await queue.join()
     finally:
-        # Apagar workers
+       
         for _ in workers:
             await queue.put(None)
         await asyncio.gather(*workers, return_exceptions=True)
@@ -266,7 +231,7 @@ async def health():
 @app.get("/status")
 async def status():
     elapsed = time.time() - state.start_time if state.running else 0
-    # Calcular hit rate de la ventana reciente
+    
     recent = state.last_results[-200:]
     hits = sum(1 for r in recent if r.get("cache") == "HIT")
     n = len(recent)
