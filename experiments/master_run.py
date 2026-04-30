@@ -1,16 +1,4 @@
-"""
-Batería completa de experimentos.
-Corre 22 corridas: 18 oficiales (3 pol × 3 size × 2 dist) +
-3 caché pequeño (eviction test) + 1 corrida larga (TTL test).
-
-Uso: python experiments/master_run.py
-     python experiments/master_run.py --suite official   # solo 18
-     python experiments/master_run.py --suite small      # solo eviction
-     python experiments/master_run.py --suite long       # solo TTL
-     python experiments/master_run.py --suite demo       # 1 exp rápido (test)
-
-Requisitos: docker compose up -d --build  (todos los servicios levantados)
-"""
+# ================== dependencias del proyecto ===================== #
 import argparse
 import json
 import os
@@ -20,6 +8,7 @@ import urllib.request
 import urllib.error
 from pathlib import Path
 
+# ================== configuraciones globales ===================== #
 TRAFFIC  = os.getenv("TRAFFIC_URL",  "http://localhost:8000")
 CACHE    = os.getenv("CACHE_URL",    "http://localhost:8001")
 METRICS  = os.getenv("METRICS_URL",  "http://localhost:8003")
@@ -35,7 +24,7 @@ RATE     = 60
 ZIPF_S   = 1.5
 
 
-# ─── HTTP helpers ────────────────────────────────────────────────────────────
+# ================== helpers HTTP ===================== #
 
 def post(url, body=None, timeout=60):
     data = json.dumps(body or {}).encode()
@@ -59,7 +48,7 @@ def redis(*args):
     return res.stdout.strip()
 
 
-# ─── Cache service management ────────────────────────────────────────────────
+# ================== manejo servicios de cache ===================== #
 
 def reconfigure_cache(policy: str, size_bytes: int):
     """Cambia política y tamaño de Redis en runtime y hace flush."""
@@ -71,23 +60,16 @@ def reconfigure_cache(policy: str, size_bytes: int):
     redis("FLUSHDB")
     redis("SET", "__fifo_evictions__", "0")
 
-    # Notificar al cache_service del cambio de política (restart vía endpoint)
-    # En Docker, el cache_service lee CACHE_POLICY del env al startup.
-    # Aquí usamos un endpoint de debug para cambiarla en caliente si existe,
-    # o simplemente reiniciamos el contenedor.
     try:
-        # intento 1: endpoint de cambio de política (si lo tiene)
         post(f"{CACHE}/reconfigure",
              {"policy": policy}, timeout=5)
     except Exception:
-        pass  # no expuesto en esta versión; el flush basta para las métricas
+        pass
 
     print(f"    Redis: policy={native} maxmemory={size_bytes//1024}KB",
           flush=True)
 
-
 def wait_for_services(retries=60, interval=1.0):
-    """Espera hasta que los 4 servicios estén healthy."""
     for svc, url in [("traffic", TRAFFIC), ("cache", CACHE),
                      ("metrics", METRICS)]:
         print(f"  Esperando {svc}...", end="", flush=True)
@@ -103,18 +85,17 @@ def wait_for_services(retries=60, interval=1.0):
             raise RuntimeError(f"{svc} no respondió en {retries}s")
 
 
-# ─── Experiment runner ───────────────────────────────────────────────────────
+# ================== ejecucion de expperimentos ===================== #
 
 def run_exp(label, distribution, duration=DURATION, rate=RATE,
             zipf_s=ZIPF_S, extra=None):
-    """Ejecuta un experimento y guarda snapshot. Retorna el summary."""
     print(f"\n  ► {label}", flush=True)
 
-    # Reset métricas y flush cache
+    # reset de metricas y flush cache
     post(f"{METRICS}/reset")
     post(f"{CACHE}/flush")
 
-    # Lanzar tráfico
+    # lanzar tráfico
     cfg = {
         "distribution": distribution,
         "rate_qps":      float(rate),
@@ -126,7 +107,7 @@ def run_exp(label, distribution, duration=DURATION, rate=RATE,
     }
     post(f"{TRAFFIC}/run", cfg)
 
-    # Esperar a que termine
+    # esperar a que termine
     deadline = time.time() + duration + 45
     while time.time() < deadline:
         try:
@@ -136,20 +117,20 @@ def run_exp(label, distribution, duration=DURATION, rate=RATE,
         except Exception:
             pass
         time.sleep(2.0)
-    time.sleep(2.5)  # margen para que métricas drenen
+    time.sleep(2.5) 
 
-    # Guardar snapshot
+    # guardar snapshot
     snap_body = {"label": label, "extra": {**cfg, **(extra or {})}}
     snap      = post(f"{METRICS}/snapshot", snap_body, timeout=30)
     summary   = snap["summary"]
 
-    # Persitir localmente
+    # persitir localmente
     RESULTS.mkdir(parents=True, exist_ok=True)
     out = RESULTS / f"snap_{label}.json"
     with open(out, "w") as f:
         json.dump(snap, f, indent=2, default=str)
 
-    # Print resumen
+    # printear el resumen
     hr   = summary.get("hit_rate") or 0
     thr  = summary.get("throughput_qps_total") or 0
     keys = (summary.get("cache_redis_stats") or {}).get("n_keys") or 0
@@ -161,8 +142,7 @@ def run_exp(label, distribution, duration=DURATION, rate=RATE,
     return summary
 
 
-# ─── Suites ──────────────────────────────────────────────────────────────────
-
+# ================== suites ===================== #
 def suite_demo():
     """1 experimento rápido para verificar que todo funciona."""
     print("\n=== DEMO (1 experimento) ===", flush=True)
@@ -228,7 +208,7 @@ def suite_all():
     print("="*65)
 
 
-# ─── Main ────────────────────────────────────────────────────────────────────
+# ================== main ===================== #
 
 def main():
     p = argparse.ArgumentParser(description="Batería de experimentos")
