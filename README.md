@@ -39,10 +39,6 @@ precargado en memoria.
 ├── experiments/
 │   ├── master_run.py                     # Batería completa (22 corridas)
 │   └── build_figures.py                  # 7 figuras del informe
-├── informe/
-│   ├── informe.tex                       # Informe técnico
-│   ├── informe.pdf                       # PDF compilado
-│   └── figs/                             # Figuras generadas
 ├── results/                              # Snapshots JSON de cada experimento
 ├── docker-compose.yml                    # Definición del stack
 ├── .env                                  # Configuración (política, tamaño, TTLs)
