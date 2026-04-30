@@ -52,7 +52,7 @@ def redis(*args):
 
 def reconfigure_cache(policy: str, size_bytes: int):
     """Cambia política y tamaño de Redis en runtime y hace flush."""
-    # Política nativa
+    # politica nativa
     native = {"LRU": "allkeys-lru", "LFU": "allkeys-lfu",
               "FIFO": "noeviction"}[policy]
     redis("CONFIG", "SET", "maxmemory-policy", native)
@@ -95,7 +95,7 @@ def run_exp(label, distribution, duration=DURATION, rate=RATE,
     post(f"{METRICS}/reset")
     post(f"{CACHE}/flush")
 
-    # lanzar tráfico
+    # lanzar trafico
     cfg = {
         "distribution": distribution,
         "rate_qps":      float(rate),
